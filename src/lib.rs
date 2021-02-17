@@ -50,6 +50,7 @@ pub use sp_core;
 pub use sp_runtime;
 
 use codec::Decode;
+use core::convert::Into;
 use futures::future;
 use jsonrpsee::client::Subscription;
 use sp_core::{
@@ -61,6 +62,14 @@ use sp_core::{
     Bytes,
 };
 pub use sp_runtime::traits::SignedExtension;
+use sp_runtime::{
+    generic::Era,
+    traits::{
+        Block,
+        Header,
+    },
+    SaturatedConversion,
+};
 pub use sp_version::RuntimeVersion;
 use std::marker::PhantomData;
 
@@ -112,6 +121,15 @@ use crate::{
     },
 };
 
+/// The period of validity of a transaction
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub enum MortalPeriod {
+    /// Create a mortal transaction with the specified period
+    Mortal(u64),
+    /// Create an immortal transaction
+    Immortal,
+}
+
 /// ClientBuilder for constructing a Client.
 #[derive(Default)]
 pub struct ClientBuilder<T: Runtime> {
@@ -119,6 +137,7 @@ pub struct ClientBuilder<T: Runtime> {
     url: Option<String>,
     client: Option<jsonrpsee::Client>,
     page_size: Option<u32>,
+    mortal_period: Option<MortalPeriod>,
 }
 
 impl<T: Runtime> ClientBuilder<T> {
@@ -129,6 +148,7 @@ impl<T: Runtime> ClientBuilder<T> {
             url: None,
             client: None,
             page_size: None,
+            mortal_period: None,
         }
     }
 
@@ -147,6 +167,12 @@ impl<T: Runtime> ClientBuilder<T> {
     /// Set the page size.
     pub fn set_page_size(mut self, size: u32) -> Self {
         self.page_size = Some(size);
+        self
+    }
+
+    /// Set the mortal period. Must be set if `Metadata::derive_mortal_period` results in an error.
+    pub fn set_mortal_period(mut self, mortal_period: MortalPeriod) -> Self {
+        self.mortal_period = Some(mortal_period);
         self
     }
 
@@ -170,16 +196,41 @@ impl<T: Runtime> ClientBuilder<T> {
             rpc.system_properties(),
         )
         .await;
+        let metadata = metadata?;
+        let mortal_period = if let Some(mortal_period) = self.mortal_period {
+            mortal_period
+        } else {
+            match metadata.derive_mortal_period() {
+                Err(e) => {
+                    log::error!("`Metadata::derive_mortal_period` failed: {}. You may need to set `mortal_period` prior to invoking `Client::build`", e);
+                    return Err(e.into())
+                }
+                Ok(period) => MortalPeriod::Mortal(period),
+            }
+        };
+
         Ok(Client {
             rpc,
             genesis_hash: genesis_hash?,
-            metadata: metadata?,
+            metadata,
             properties: properties.unwrap_or_else(|_| Default::default()),
             runtime_version: runtime_version?,
             _marker: PhantomData,
             page_size: self.page_size.unwrap_or(10),
+            signed_options: SigningOptions { mortal_period },
         })
     }
+}
+
+/// Construction options for a signed extrinsic
+#[derive(Copy, Clone)]
+struct SigningOptions {
+    /// The period of validity, measured in blocks, that an extrinsic will live for, starting from a checkpoint
+    /// block.
+    ///
+    /// Substrate reference:
+    /// https://docs.rs/sp-runtime/2.0.0/sp_runtime/generic/enum.Era.html#variant.Mortal
+    pub(crate) mortal_period: MortalPeriod,
 }
 
 /// Client to interface with a substrate node.
@@ -191,6 +242,7 @@ pub struct Client<T: Runtime> {
     runtime_version: RuntimeVersion,
     _marker: PhantomData<(fn() -> T::Signature, T::Extra)>,
     page_size: u32,
+    signed_options: SigningOptions,
 }
 
 impl<T: Runtime> Clone for Client<T> {
@@ -203,6 +255,7 @@ impl<T: Runtime> Clone for Client<T> {
             runtime_version: self.runtime_version.clone(),
             _marker: PhantomData,
             page_size: self.page_size,
+            signed_options: self.signed_options,
         }
     }
 }
@@ -267,6 +320,17 @@ impl<T: Runtime> Client<T> {
     /// Returns the system properties
     pub fn properties(&self) -> &SystemProperties {
         &self.properties
+    }
+
+    /// Returns the current mortal_period
+    pub fn mortal_period(&self) -> &MortalPeriod {
+        &self.signed_options.mortal_period
+    }
+
+    /// Set the mortal period
+    pub fn set_mortal_period(mut self, mortal_period: MortalPeriod) -> Self {
+        self.signed_options.mortal_period = mortal_period;
+        self
     }
 
     /// Fetch the value under an unhashed storage key
@@ -455,12 +519,31 @@ impl<T: Runtime> Client<T> {
             self.account(signer.account_id(), None).await?.nonce
         };
         let call = self.encode(call)?;
+        let era_info = if let MortalPeriod::Mortal(mortal_period) =
+            self.signed_options.mortal_period
+        {
+            let current_block = match self.block(None::<T::Hash>).await? {
+                Some(signed_block) => signed_block.block,
+                None => return Err("RPC chain_getBlock returned None when Some(signed_block) was expected".into()),
+            };
+            let current_number =
+                (*current_block.header().number()).saturated_into::<u64>();
+            let current_hash = current_block.hash();
+
+            (
+                Era::mortal(mortal_period, current_number),
+                Some(current_hash),
+            )
+        } else {
+            (Era::Immortal, None)
+        };
         let signed = extrinsic::create_signed(
             &self.runtime_version,
             self.genesis_hash,
             account_nonce,
             call,
             signer,
+            era_info,
         )
         .await?;
         Ok(signed)

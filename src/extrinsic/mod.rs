@@ -38,7 +38,10 @@ pub use self::{
     },
 };
 
-use sp_runtime::traits::SignedExtension;
+use sp_runtime::{
+    generic::Era,
+    traits::SignedExtension,
+};
 use sp_version::RuntimeVersion;
 
 use crate::{
@@ -66,6 +69,7 @@ pub async fn create_signed<T>(
     nonce: T::Index,
     call: Encoded,
     signer: &(dyn Signer<T> + Send + Sync),
+    era_info: (Era, Option<T::Hash>),
 ) -> Result<UncheckedExtrinsic<T>, Error>
 where
     T: Runtime,
@@ -74,7 +78,7 @@ where
 {
     let spec_version = runtime_version.spec_version;
     let tx_version = runtime_version.transaction_version;
-    let extra: T::Extra = T::Extra::new(spec_version, tx_version, nonce, genesis_hash);
+    let extra = T::Extra::new(spec_version, tx_version, nonce, genesis_hash, era_info);
     let payload = SignedPayload::<T>::new(call, extra.extra())?;
     let signed = signer.sign(payload).await?;
     Ok(signed)

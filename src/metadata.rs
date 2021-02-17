@@ -40,6 +40,9 @@ use sp_core::storage::StorageKey;
 
 use crate::Encoded;
 
+/// 5 min `mortal_period` in milliseconds, to be adjusted based on expected block time
+const BASELINE_MORTAL_PERIOD: u64 = 5 * 60 * 1000;
+
 /// Metadata error.
 #[derive(Debug, thiserror::Error)]
 pub enum MetadataError {
@@ -76,6 +79,9 @@ pub enum MetadataError {
     /// Constant is not in metadata.
     #[error("Constant {0} not found")]
     ConstantNotFound(&'static str),
+    /// Failed trying to derive mortal period
+    #[error("Failed trying to derive mortal period: {0}")]
+    MortalPeriodError(&'static str),
 }
 
 /// Runtime metadata.
@@ -164,6 +170,36 @@ impl Metadata {
             }
         }
         string
+    }
+
+    /// Derive a mortal period
+    pub(crate) fn derive_mortal_period(&self) -> Result<u64, MetadataError> {
+        let block_hash_count: u64 = self
+            .module("System")
+            .and_then(|sys| sys.constant("BlockHashCount"))
+            .and_then(|b| b.value::<u32>())
+            .map(Into::into)?;
+        let expected_block_time = self
+            .module("Timestamp")
+            .and_then(|time| time.constant("MinimumPeriod"))
+            .and_then(|m| m.value::<u64>())?
+            .checked_mul(2)
+            .ok_or(MetadataError::MortalPeriodError(
+                "Underflow or overflow attempting `TimeStamp::MinimumPeriod.checked_mul(2)`",
+            ))?;
+
+        match expected_block_time {
+            0 => {
+                Err(MetadataError::MortalPeriodError(
+                    "`Babe::ExpectedBlockTime` was 0 when a value > 0 was expected",
+                ))
+            }
+            expected_block_time => {
+                Ok((BASELINE_MORTAL_PERIOD / expected_block_time)
+                    .next_power_of_two()
+                    .min(block_hash_count.next_power_of_two()))
+            }
+        }
     }
 }
 
