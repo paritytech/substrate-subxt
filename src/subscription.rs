@@ -119,17 +119,17 @@ impl<'a, T: Runtime> EventSubscription<'a, T> {
                                     continue
                                 }
                             }
-                            let event = match raw {
-                                Raw::Event(event) => event,
-                                Raw::Error(err) => return Some(Err(err.into())),
-                            };
-                            if let Some((module, variant)) = self.event {
-                                if event.module != module || event.variant != variant {
-                                    continue
-                                }
-                            }
-                            self.events.push_back(event);
                         }
+                        let event = match raw {
+                            Raw::Event(event) => event,
+                            Raw::Error(err) => return Some(Err(err.into())),
+                        };
+                        if let Some((module, variant)) = self.event {
+                            if event.module != module || event.variant != variant {
+                                continue
+                            }
+                        }
+                        self.events.push_back(event);
                     }
                 }
             }
