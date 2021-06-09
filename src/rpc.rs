@@ -228,9 +228,21 @@ impl From<WsClient> for RpcClient {
     }
 }
 
+impl From<Arc<WsClient>> for RpcClient {
+    fn from(client: Arc<WsClient>) -> Self {
+        RpcClient::WebSocket(client)
+    }
+}
+
 impl From<HttpClient> for RpcClient {
     fn from(client: HttpClient) -> Self {
         RpcClient::Http(Arc::new(client))
+    }
+}
+
+impl From<Arc<HttpClient>> for RpcClient {
+    fn from(client: Arc<HttpClient>) -> Self {
+        RpcClient::Http(client)
     }
 }
 
