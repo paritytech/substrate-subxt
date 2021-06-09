@@ -46,10 +46,12 @@ extern crate substrate_subxt_proc_macro;
 pub use sp_core;
 pub use sp_runtime;
 
+pub use codec;
 use codec::{
     Codec,
     Decode,
 };
+pub use frame_support;
 use futures::future;
 use jsonrpsee_http_client::HttpClientBuilder;
 use jsonrpsee_ws_client::{

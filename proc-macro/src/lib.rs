@@ -116,7 +116,7 @@ decl_derive!(
     /// #[module]
     /// pub trait MyTrait: System + Balances {}
     ///
-    /// #[derive(Call)]
+    /// #[derive(Call, Encode)]
     /// pub struct FunStuffCall<T: MyTrait> {
     ///     /// Runtime marker.
     ///     pub _runtime: PhantomData<T>,
@@ -147,7 +147,70 @@ fn event(s: Structure) -> TokenStream {
     event::event(s).into()
 }
 
-decl_derive!([Store, attributes(store)] => #[proc_macro_error] store);
+decl_derive!(
+    [Store, attributes(store)] =>
+    /// Derive macro that implements [substrate_subxt::Store](../substrate_subxt/trait.Store.html)
+    /// for your struct.
+    ///
+    /// Use the `Store` derive macro in tandem with the [#module](../substrate_subxt/attr.module.html)
+    /// macro to extend the client to enable reading from the runtime storage.
+    ///
+    /// The struct maps to the corresponding Substrate pallet storage field of your module:
+    /// ```rust,ignore
+    ///  #[module]
+    ///  pub trait MyTrait: System + Balances {}
+    /// ```
+    /// The pallet's storage field can be either a `plain`, a `map` or a `double_map`.
+    ///
+    /// A `plain` struct that represents a `StorageValue`: (`LastValue get(fn last_value): u32;`)
+    /// cannot have any fields, e.g:
+    ///
+    /// ```rust,ignore
+    /// #[derive(Encode, Store)]
+    /// pub struct LastValue<T: MyTrait> {
+    ///     #[store(returns = u32)]
+    ///     /// Marker for the runtime
+    ///     pub _runtime: PhantomData<T>,
+    /// }
+    /// ```
+    /// A `StorageMap` (`UserValue get(fn user_value): map T::AccountId => u32;`) requires
+    /// exactly 1 field representing the the map's key of the value to be returned
+    ///
+    /// ```rust,ignore
+    /// #[derive(Encode, Store)]
+    /// pub struct UserValue<'a, T: MyTrait> {
+    ///     #[store(returns = u32)]
+    ///     /// The key to for the map's value
+    ///     account_id: &'a <T as System>::AccountId
+    /// }
+    /// ```
+    ///
+    /// And a `StorageDoubleMap` (`SomeDoubleMap: double_map hasher(blake2_128_concat) u32, hasher(blake2_128_concat) T::AccountId => u32;`)
+    /// requires exactly 2 fields representing the the map's keys of the value to be returned:
+    ///
+    /// ```rust,ignore
+    /// #[derive(Encode, Store)]
+    /// pub struct SomeDoubleMap<'a, T: MyTrait> {
+    ///     #[store(returns = u32)]
+    ///     /// The first key of the double map
+    ///     first_key: u32,
+    ///     /// The second key of the double map
+    ///     account_id: &'a <T as System>::AccountId
+    /// }
+    /// ```
+    ///
+    /// The `returns` attribute configures the stored value of the storage field, e.g.:
+    /// `#[store(returns = u32)]` states that this storage field stores a single `u32` for
+    /// `StorageValue` storage fields, and `u32` values for map types.
+    ///
+    /// The `Store` macro will generate extension traits and implement them for the `Client`, so
+    /// that you have access when using your `Runtime`.
+    /// The `Store` derive macro requires you to use the `module` derive macro in the same rust
+    /// module, because it expects the `MODULE` constant to properly derive the storage keys.
+    ///
+    /// Under the hood the implementation calls [fetch_or_default()](../substrate_subxt/struct.Client.html#method.fetch_or_default) and
+    /// [fetch()](../substrate_subxt/struct.Client.html#method.fetch) for `Option` return types.
+    #[proc_macro_error] store);
 fn store(s: Structure) -> TokenStream {
     store::store(s).into()
 }
