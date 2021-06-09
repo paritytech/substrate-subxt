@@ -58,7 +58,7 @@ pub enum MetadataError {
     /// Event is not in metadata.
     #[error("Event {0} not found")]
     EventNotFound(u8),
-    /// Event is not in metadata.
+    /// Error is not in metadata.
     #[error("Error {0} not found")]
     ErrorNotFound(u8),
     /// Storage is not in metadata.
