@@ -116,7 +116,7 @@ decl_derive!(
     /// #[module]
     /// pub trait MyTrait: System + Balances {}
     ///
-    /// #[derive(Call)]
+    /// #[derive(Call, Encode)]
     /// pub struct FunStuffCall<T: MyTrait> {
     ///     /// Runtime marker.
     ///     pub _runtime: PhantomData<T>,
