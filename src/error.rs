@@ -18,7 +18,7 @@ use jsonrpsee_ws_client::Error as RequestError;
 use sp_core::crypto::SecretStringError;
 use sp_runtime::{
     transaction_validity::TransactionValidityError,
-    DispatchError,
+    DispatchError, TokenError, ArithmeticError,
 };
 use thiserror::Error;
 
@@ -111,6 +111,12 @@ pub enum RuntimeError {
     /// Cannot lookup.
     #[error("Cannot lookup some information required to validate the transaction.")]
     CannotLookup,
+    /// An error to do with tokens.
+    #[error("An error to do with tokens. {0:?}")]
+    Token(TokenError),
+    /// An arithmetic error.
+    #[error("An arithmetic error. {0:?}")]
+    Arithmetic(ArithmeticError),
     /// Other error.
     #[error("Other error: {0}")]
     Other(String),
@@ -134,7 +140,9 @@ impl RuntimeError {
                     module: module.name().to_string(),
                     error: error.to_string(),
                 }))
-            }
+            },
+            DispatchError::Token(err) => Ok(Self::Token(err)),
+            DispatchError::Arithmetic(err) => Ok(Self::Arithmetic(err)),
             DispatchError::BadOrigin => Ok(Self::BadOrigin),
             DispatchError::CannotLookup => Ok(Self::CannotLookup),
             DispatchError::ConsumerRemaining => Ok(Self::ConsumerRemaining),

@@ -361,7 +361,7 @@ mod tests {
         ModuleMetadata,
         RuntimeMetadata,
         RuntimeMetadataPrefixed,
-        RuntimeMetadataV12,
+        RuntimeMetadataV13,
         META_RESERVED,
     };
     use std::convert::TryFrom;
@@ -399,7 +399,7 @@ mod tests {
         let decoder = EventsDecoder::<TestRuntime>::new(
             Metadata::try_from(RuntimeMetadataPrefixed(
                 META_RESERVED,
-                RuntimeMetadata::V12(RuntimeMetadataV12 {
+                RuntimeMetadata::V13(RuntimeMetadataV13 {
                     modules: DecodeDifferent::Decoded(vec![ModuleMetadata {
                         name: DecodeDifferent::Decoded("System".to_string()),
                         storage: None,

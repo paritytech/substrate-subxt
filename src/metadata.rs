@@ -529,7 +529,7 @@ impl TryFrom<RuntimeMetadataPrefixed> for Metadata {
             return Err(ConversionError::InvalidPrefix.into())
         }
         let meta = match metadata.1 {
-            RuntimeMetadata::V12(meta) => meta,
+            RuntimeMetadata::V13(meta) => meta,
             _ => return Err(ConversionError::InvalidVersion.into()),
         };
         let mut modules = HashMap::new();

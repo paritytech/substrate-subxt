@@ -25,7 +25,7 @@ jobs:
 
     - name: download-substrate
       run: |
-          curl "https://releases.parity.io/substrate/x86_64-debian:stretch/v3.0.0/substrate/substrate" --output substrate --location
+          curl "https://releases.parity.io/substrate/x86_64-debian:stretch/latest/substrate/substrate" --output substrate --location
           chmod +x ./substrate
           mkdir -p ~/.local/bin
           mv substrate ~/.local/bin
